@@ -1,0 +1,9 @@
+{
+  "startHidden": false,
+  "refreshSeconds": 300,
+  "agents": [
+    "deepseek-harness",
+    "codex",
+    "opencode"
+  ]
+}

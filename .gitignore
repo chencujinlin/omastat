@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.log
+.env
+.env.*
+.venv/
+.credentials*
+*.key
+*.pem
+config.local.json
+agents-cache.json
+.DS_Store
+*.sqlite
+*.sqlite-*
+docs/*.tmp

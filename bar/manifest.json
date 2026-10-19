@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "chencu.omastat",
+  "name": "Omastat",
+  "version": "1.0.0",
+  "description": "系统资源与 AI Agent 监控入口，共享 Omastat 采样。",
+  "kinds": ["bar-widget"],
+  "entryPoints": {"barWidget": "BarWidget.qml"},
+  "barWidget": {
+    "displayName": "Omastat",
+    "description": "点击显示或隐藏 Omastat；可选系统指标或账号额度。",
+    "category": "System",
+    "allowMultiple": false,
+    "defaults": {"metric": "none"},
+    "schema": [{"key": "metric", "type": "enum", "label": "顶部栏指标", "options": ["none", "cpu", "memory", "agent:deepseek-harness", "agent:codex", "agent:opencode"], "defaultValue": "none"}]
+  }
+}

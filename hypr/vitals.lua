@@ -1,0 +1,4 @@
+-- omastat uses a normal application window. Intentionally no float, pin,
+-- fixed geometry, focus, border or decoration rules: the user's Hyprland
+-- configuration controls tiling, movement, resizing, and focus.
+-- The module remains so existing require("hypr.vitals") lines keep working.

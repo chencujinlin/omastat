@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Compatibility command; both omastat and omarchy-vitals use this one instance.
+set -uo pipefail
+PROJECT=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+QS=${QS:-quickshell}
+CONFIG_PATH=${OMASTAT_CONFIG:-$PROJECT}
+
+ipc() { "$QS" -p "$CONFIG_PATH" ipc call vitals "$@" 2>/dev/null; }
+running() { local reply; reply=$(ipc ping) && [[ $reply == *ok* ]]; }
+start() {
+  running && return 0
+  # Serialize concurrent bar, shortcut, and launcher starts; -n is a second guard.
+  local runtime=${XDG_RUNTIME_DIR:-/tmp/omastat-$UID}
+  mkdir -p "$runtime"
+  exec 9>"$runtime/omastat-start.lock"
+  flock 9
+  if ! running; then
+    OMASTAT_BACKGROUND=1 "$QS" -p "$CONFIG_PATH" -n --daemonize >/dev/null 2>&1 || return 1
+    local attempt
+    for attempt in {1..40}; do running && break; sleep 0.1; done
+  fi
+  flock -u 9
+  exec 9>&-
+  running
+}
+usage() { printf '%s\n' '用法: omastat [show|hide|toggle|refresh|status|quit|run|bar <none|cpu|memory|agent:ID>]'; }
+case "${1:-show}" in
+  run) exec "$QS" -p "$CONFIG_PATH" -n ;;
+  show|start) start && ipc open ;;
+  hide) ipc close ;;
+  toggle) start && ipc toggle ;;
+  refresh) start && ipc refresh ;;
+  status) if running; then ipc status; else printf '%s\n' '{"visible":false,"running":false,"systemState":"unknown","agentState":"unknown"}'; fi ;;
+  bar)
+    metric=${2:-none}
+    case "$metric" in none|cpu|memory|agent:codex|agent:claude|agent:pi|agent:opencode|agent:deepseek-harness|agent:fireworks) ;; *) usage >&2; exit 2;; esac
+    if [[ $metric == none ]]; then
+      if running; then ipc status; else printf '%s\n' '{"running":false,"systemState":"unknown","agentState":"unknown"}'; fi
+    else start && ipc bar "$metric"; fi
+    ;;
+  quit|stop) ipc quit ;;
+  -h|--help|help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac

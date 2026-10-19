@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Omastat
+GenericName=Omastat
+Comment=CPU、GPU、内存、磁盘与 AI 智能体用量
+Exec=omastat show
+Icon=omarchy-vitals
+Terminal=false
+Categories=System;Monitor;
+Keywords=system;monitor;cpu;gpu;memory;disk;agent;usage;
+StartupNotify=false
