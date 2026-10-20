@@ -14,10 +14,19 @@ Item {
   readonly property var limit: agent.bestLimit || null
   readonly property bool isDsh: agent.id === "deepseek-harness"
   readonly property var apiBalance: agent.apiBalance || null
-  readonly property bool hasBalance: root.apiBalance !== null
+  readonly property var accountBalance: agent.accountBalance || null
+  readonly property bool apiBalanceReady: root.apiBalance !== null
     && root.apiBalance.total !== null && root.apiBalance.total !== undefined
+  readonly property bool apiBalanceFresh: root.apiBalance !== null && root.apiBalance.state === "ok"
+  readonly property bool accountBalanceReady: root.accountBalance !== null
+    && root.accountBalance.remaining !== null && root.accountBalance.remaining !== undefined
+  readonly property bool hasBalance: root.isDsh ? root.apiBalanceReady : root.accountBalanceReady
   readonly property string balanceText: root.hasBalance
-    ? Fmt.money(root.apiBalance.currency, root.apiBalance.total) : "--"
+    ? (root.isDsh
+        ? Fmt.money(root.apiBalance.currency, root.apiBalance.total)
+        : Fmt.money(root.accountBalance.currency, root.accountBalance.remaining))
+    : "--"
+  readonly property string quotaLabel: (root.isDsh || root.accountBalanceReady) ? "余额" : "额度"
   readonly property string quotaText: root.limit ? Math.round(root.limit.percent * 100) + "%" : "无"
   readonly property string consumeText: agent.todayTokens === null || agent.todayTokens === undefined
     ? "--" : Fmt.tokens(agent.todayTokens)
@@ -59,13 +68,12 @@ Item {
       MetricCell {
         width: (parent.width - 12) / 2
         theme: root.theme
-        label: root.isDsh ? "余额" : "额度"
-        value: root.isDsh ? root.balanceText : root.quotaText
-        valueColor: root.isDsh
-          ? (root.hasBalance && root.apiBalance.state === "ok"
-              ? root.accent : Fmt.alpha(root.theme.colors.bright, 0.6))
+        label: root.quotaLabel
+        value: root.hasBalance ? root.balanceText : (root.isDsh ? "--" : root.quotaText)
+        valueColor: root.hasBalance
+          ? (root.isDsh && !root.apiBalanceFresh ? Fmt.alpha(root.theme.colors.bright, 0.6) : root.accent)
           : (root.limit ? root.accent : Fmt.alpha(root.theme.colors.bright, 0.6))
-        showBar: root.isDsh ? false : root.limit !== null
+        showBar: !root.hasBalance && root.limit !== null
         barValue: root.limit ? root.limit.percent : 0
         accent: root.accent
       }

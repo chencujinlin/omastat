@@ -23,7 +23,7 @@ with tempfile.TemporaryDirectory(prefix='omastat-qml-smoke-') as d:
     (harness/'bar').symlink_to(ROOT/'bar',target_is_directory=True)
     (harness/'shell.qml').write_text('import QtQuick\nimport Quickshell\nimport "bar" as Plugin\nShellRoot { FloatingWindow { visible: true; implicitWidth: 300; implicitHeight: 40; Plugin.BarWidget {} } }\n')
     hidden=base/'hidden-app'
-    shutil.copytree(ROOT,hidden,ignore=shutil.ignore_patterns('.git','.aws','.codex','.agents','__pycache__','*.log','stage1-*.png'))
+    shutil.copytree(ROOT,hidden,ignore=shutil.ignore_patterns('.git','.aws','.codex','.agents','__pycache__','*.log','stage1-*.png','config.local.json'))
     config=json.loads((hidden/'config.json').read_text());config['startHidden']=True
     (hidden/'config.json').write_text(json.dumps(config))
     for label,path in [('application',ROOT),('hidden-application',hidden),('bar',harness)]:

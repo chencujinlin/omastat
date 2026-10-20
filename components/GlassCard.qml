@@ -2,9 +2,10 @@ import QtQuick
 import Quickshell.Widgets
 import "../lib/Format.js" as Fmt
 
-// Frosted glass without a live shader blur: the wallpaper is loaded at a low
-// resolution and smoothly upscaled, then graded under a dark tint. That keeps
-// the look at full-screen sizes without repainting a full-screen blur pass.
+// Frosted glass by default: the wallpaper is loaded at a low resolution and
+// smoothly upscaled, then graded under a dark tint. That keeps the look at
+// full-screen sizes without repainting a full-screen blur pass. Flat themes
+// (orange) skip the wallpaper, grain and translucent grade entirely.
 Item {
   id: root
 
@@ -21,6 +22,7 @@ Item {
     bg: "#1a1b26", darkBg: "#0e0e14", lightBg: "#24283b"
   })
   readonly property bool dark: theme ? theme.isDark : true
+  readonly property bool glass: theme ? theme.glass !== false : true
 
   ClippingRectangle {
     id: clip
@@ -28,23 +30,26 @@ Item {
     radius: root.radius
     color: "transparent"
     border.width: 1
-    border.color: Fmt.alpha(root.colors.bright, root.dark ? 0.22 : 0.45)
+    border.color: root.glass
+      ? Fmt.alpha(root.colors.bright, root.dark ? 0.22 : 0.45)
+      : Fmt.alpha(root.colors.accent, root.dark ? 0.3 : 0.22)
 
     Image {
       anchors.fill: parent
-      source: root.theme ? root.theme.wallpaperSource : ""
+      visible: root.glass
+      source: root.glass && root.theme ? root.theme.wallpaperSource : ""
       sourceSize: Qt.size(28, 21)
       fillMode: Image.PreserveAspectCrop
       asynchronous: true
       cache: false
       smooth: true
       mipmap: true
-      opacity: status === Image.Ready ? 0.18 : 0
+      opacity: visible && status === Image.Ready ? 0.18 : 0
     }
 
     Rectangle {
       anchors.fill: parent
-      visible: true
+      visible: root.glass
       gradient: Gradient {
         GradientStop { position: 0.0; color: Fmt.alpha(root.colors.darkBg, 0.88) }
         GradientStop { position: 0.4; color: Fmt.alpha(root.colors.bg, 0.92) }
@@ -53,8 +58,19 @@ Item {
     }
 
     Rectangle {
+      anchors.fill: parent
+      visible: !root.glass
+      gradient: Gradient {
+        GradientStop { position: 0.0; color: root.colors.darkBg }
+        GradientStop { position: 0.45; color: root.colors.bg }
+        GradientStop { position: 1.0; color: root.colors.darkBg }
+      }
+    }
+
+    Rectangle {
       width: parent.width
       height: 200
+      visible: root.glass
       gradient: Gradient {
         GradientStop { position: 0.0; color: Fmt.alpha(root.colors.accent, 0.055) }
         GradientStop { position: 0.5; color: Fmt.alpha(root.colors.accent, 0.014) }
@@ -69,15 +85,16 @@ Item {
       height: 1
       gradient: Gradient {
         orientation: Gradient.Horizontal
-        GradientStop { position: 0.0; color: Fmt.alpha(root.colors.bright, 0.0) }
-        GradientStop { position: 0.35; color: Fmt.alpha(root.colors.bright, 0.42) }
-        GradientStop { position: 0.65; color: Fmt.alpha(root.colors.bright, 0.42) }
-        GradientStop { position: 1.0; color: Fmt.alpha(root.colors.bright, 0.0) }
+        GradientStop { position: 0.0; color: Fmt.alpha(root.glass ? root.colors.bright : root.colors.accent, 0.0) }
+        GradientStop { position: 0.35; color: Fmt.alpha(root.glass ? root.colors.bright : root.colors.accent, root.glass ? 0.42 : 0.5) }
+        GradientStop { position: 0.65; color: Fmt.alpha(root.glass ? root.colors.bright : root.colors.accent, root.glass ? 0.42 : 0.5) }
+        GradientStop { position: 1.0; color: Fmt.alpha(root.glass ? root.colors.bright : root.colors.accent, 0.0) }
       }
     }
 
     Image {
       anchors.fill: parent
+      visible: root.glass
       source: "../assets/grain.png"
       fillMode: Image.Tile
       opacity: 0.03

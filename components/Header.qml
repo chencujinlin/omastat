@@ -7,6 +7,7 @@ Item {
   property var theme: null
   property var system: null
   property var agents: null
+  signal settingsClicked()
   implicitHeight: 64
 
   readonly property var colors: theme ? theme.colors : ({
@@ -50,8 +51,45 @@ Item {
     color: root.agents && root.agents.count > 0 ? root.colors.green : root.colors.yellow
   }
 
-  Text {
+  Item {
+    id: settingsButton
     anchors.right: parent.right
+    y: 3
+    width: 26
+    height: 26
+
+    HoverHandler {
+      id: settingsHover
+      cursorShape: Qt.PointingHandCursor
+    }
+
+    Rectangle {
+      anchors.fill: parent
+      radius: 6
+      color: settingsHover.hovered ? Fmt.alpha(root.colors.bright, 0.08) : "transparent"
+    }
+
+    // Three sliders, drawn in the same style as the system glyphs. A custom
+    // mark avoids depending on a settings glyph being present in the font.
+    Item {
+      width: 14
+      height: 14
+      anchors.centerIn: parent
+
+      Rectangle { x: 0; y: 2; width: 14; height: 1; radius: 0.5; color: root.colors.bright }
+      Rectangle { x: 8; y: 0; width: 4; height: 4; radius: 2; color: root.colors.accent }
+      Rectangle { x: 0; y: 7; width: 14; height: 1; radius: 0.5; color: Fmt.alpha(root.colors.bright, 0.9) }
+      Rectangle { x: 3; y: 5; width: 4; height: 4; radius: 2; color: root.colors.accent }
+      Rectangle { x: 0; y: 12; width: 14; height: 1; radius: 0.5; color: root.colors.bright }
+      Rectangle { x: 10; y: 10; width: 4; height: 4; radius: 2; color: root.colors.accent }
+    }
+
+    TapHandler { onTapped: root.settingsClicked() }
+  }
+
+  Text {
+    anchors.right: settingsButton.left
+    anchors.rightMargin: 10
     y: 0
     text: Fmt.clock(root.clockDate)
     color: root.colors.bright
@@ -61,7 +99,8 @@ Item {
   }
 
   Text {
-    anchors.right: parent.right
+    anchors.right: settingsButton.left
+    anchors.rightMargin: 10
     y: 27
     text: Fmt.fullDate(root.clockDate)
     color: Fmt.alpha(root.colors.bright, 0.76)

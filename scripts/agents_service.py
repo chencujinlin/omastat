@@ -20,7 +20,8 @@ import time
 from usage_stats import PARSER_VERSION, BUCKETS, NativeStats, account_for_forks, aggregate, number, obj, opencode_origins, stamp
 from deepseek_balance import DeepSeekBalance
 
-NAMES = {'codex': 'Codex', 'opencode': 'OpenCode', 'claude': 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', 'pi': 'Pi', 'fireworks': 'Fireworks'}
+AGENT_ORDER = ('deepseek-harness', 'codex', 'opencode', 'claude', 'pi', 'fireworks')
+NAMES = {'deepseek-harness': 'DeepSeek Harness', 'codex': 'Codex', 'opencode': 'OpenCode', 'claude': 'Claude Code', 'pi': 'Pi', 'fireworks': 'Fireworks'}
 LOCAL = {'opencode', 'deepseek-harness', 'pi'}
 TTL = 6 * 3600
 PROCESSES = set()
@@ -59,11 +60,32 @@ def load_or_empty(path):
         return {}
 
 
+def valid_balance(raw):
+    # Prepaid agents (Fireworks) publish a small credit ledger. Keep only the
+    # accounting fields; never persist arbitrary payloads around it.
+    entry = obj(raw)
+    remaining = number(entry.get('remaining'))
+    if remaining is None:
+        return None
+    funded = number(entry.get('funded'))
+    spent = number(entry.get('spent'))
+    return {
+        'remaining': remaining,
+        'funded': funded if funded is not None else 0,
+        'spent': spent if spent is not None else 0,
+        'currency': str(entry.get('currency') or 'USD')[:8],
+        'estimated': entry.get('estimated') is True,
+    }
+
+
 def safe_record(record, now):
     # Persist accounting fields only. Drop auth hints, arbitrary payloads and
     # upstream diagnostic text even when the surrounding JSON is valid.
     safe = {key: record[key] for key in ('id', 'updatedAt', 'limitsUpdatedAt', 'hasLocalStats', 'retryAdvised') if key in record}
     safe['usageStatusText'] = bool(record.get('usageStatusText'))
+    balance = valid_balance(record.get('balance'))
+    if balance is not None:
+        safe['balance'] = balance
     safe['limits'] = valid_limits(record.get('limits'), now)
     for key in ('todayTotalTokens', 'todayPrompts'):
         safe[key] = number(record.get(key))
@@ -299,7 +321,7 @@ class Store:
                 ttft = number(stats.get('ttftSeconds'))
             if speed is None:
                 speed = number(stats.get('tokensPerSecond'))
-            result.append({'tokenState': token_state, 'quotaHealth': quota_health, 'id': agent, 'name': NAMES[agent], 'plan': '本地工具', 'scope': stats.get('scope', 'tool'), 'state': state, 'error': self.errors.get(agent, '') or self.stats_errors.get(agent, ''), 'updatedAtMs': at*1000 if at else 0, 'statsUpdatedAtMs': local_at*1000 if local_at else 0, 'todayTokens': stats.get('todayTokens') if date_ok else None, 'todayPrompts': stats.get('todayRequests') if date_ok else None, 'sevenTokens': stats.get('sevenTokens') if date_ok else None, 'sevenPrompts': stats.get('sevenRequests') if date_ok else None, 'models': stats.get('models', {}), 'todayModels': stats.get('todayModels', {}) if date_ok else {}, 'detailScope': stats.get('detailScope', '累计'), 'days': stats.get('days', []), 'lastActivityMs': stats.get('lastActivityMs'), 'limits': limits, 'bestLimit': max(limits, key=lambda x: x['percent']) if limits else None, 'cachedQuota': quota_stale, 'quotaState': quota_state, 'quotaUpdatedAtMs': cache_at*1000 if cache_at is not None else 0, 'ttftSeconds': ttft, 'tokensPerSecond': speed, 'apiBalance': self.balance.snapshot(now) if agent == 'deepseek-harness' else None})
+            result.append({'tokenState': token_state, 'quotaHealth': quota_health, 'id': agent, 'name': NAMES[agent], 'plan': '本地工具', 'scope': stats.get('scope', 'tool'), 'state': state, 'error': self.errors.get(agent, '') or self.stats_errors.get(agent, ''), 'updatedAtMs': at*1000 if at else 0, 'statsUpdatedAtMs': local_at*1000 if local_at else 0, 'todayTokens': stats.get('todayTokens') if date_ok else None, 'todayPrompts': stats.get('todayRequests') if date_ok else None, 'sevenTokens': stats.get('sevenTokens') if date_ok else None, 'sevenPrompts': stats.get('sevenRequests') if date_ok else None, 'models': stats.get('models', {}), 'todayModels': stats.get('todayModels', {}) if date_ok else {}, 'detailScope': stats.get('detailScope', '累计'), 'days': stats.get('days', []), 'lastActivityMs': stats.get('lastActivityMs'), 'limits': limits, 'bestLimit': max(limits, key=lambda x: x['percent']) if limits else None, 'cachedQuota': quota_stale, 'quotaState': quota_state, 'quotaUpdatedAtMs': cache_at*1000 if cache_at is not None else 0, 'ttftSeconds': ttft, 'tokensPerSecond': speed, 'accountBalance': valid_balance(raw.get('balance')), 'apiBalance': self.balance.snapshot(now) if agent == 'deepseek-harness' else None})
         priority = ('error', 'stale', 'unknown', 'normal')
         state = next((s for s in priority if any(r['state'] == s for r in result)), 'unknown')
         timestamps = [r['updatedAtMs'] for r in result if r['updatedAtMs']]
@@ -323,6 +345,34 @@ class Store:
         if self.dirty:
             atomic_json(self.state_dir / 'agents-cache.json', {'records': self.records, 'limits': self.limits, 'native': self.native_cache, 'nativeParserVersion': PARSER_VERSION})
             self.dirty = False
+
+
+def read_settings(config_path):
+    """Merge config.json with the gitignored config.local.json overlay.
+
+    The settings UI writes the overlay; the base file stays the checked-in
+    default. Both files are read at runtime so an external edit is picked up
+    on the next poll without restarting the reader.
+    """
+    path = Path(config_path)
+    base = load_or_empty(path)
+    local = load_or_empty(path.with_name('config.local.json'))
+    # Mirror Config.qml: a valid overlay value wins, otherwise the base file,
+    # otherwise the built-in default. A malformed local value must not mask a
+    # valid base selection.
+    raw_ids = local.get('agents') if isinstance(local.get('agents'), list) else base.get('agents', list(AGENT_ORDER))
+    if not isinstance(raw_ids, list):
+        raw_ids = list(AGENT_ORDER)
+    selected = {agent for agent in raw_ids if isinstance(agent, str) and agent in NAMES}
+    if raw_ids and not selected:
+        selected = set(AGENT_ORDER)
+    ids = [agent for agent in AGENT_ORDER if agent in selected]
+    interval = number(local.get('refreshSeconds'))
+    if interval is None:
+        interval = number(base.get('refreshSeconds'))
+    if interval is None:
+        interval = 300
+    return ids, max(60, interval)
 
 
 def main():
@@ -349,14 +399,11 @@ def main():
     try:
         while True:
             now, force = time.time(), False
-            settings = load_or_empty(args.config)
-            ids = settings.get('agents', list(NAMES))
-            ids = list(dict.fromkeys(a for a in ids if isinstance(a, str) and a in NAMES)) if isinstance(ids, list) else list(NAMES)
-            interval = number(settings.get('refreshSeconds')) or 300
-            interval = max(60, interval)
+            ids, interval = read_settings(args.config)
             store.poll(ids, now)
             if not (args.no_collect or os.environ.get('OMASTAT_NO_COLLECT')):
-                store.balance.request(now, force)
+                if 'deepseek-harness' in ids:
+                    store.balance.request(now, force)
             for agent, future in list(active.items()):
                 if future.done():
                     try:
@@ -376,7 +423,9 @@ def main():
             print(json.dumps(snapshot, ensure_ascii=False, allow_nan=False), flush=True)
             if args.once:
                 break
-            wait = 0.25 if store.balance.pending else args.poll_seconds
+            # Publish while collectors are running so a newly enabled Agent
+            # shows up immediately; otherwise use the normal poll interval.
+            wait = 0.25 if store.balance.pending else (1 if active else args.poll_seconds)
             events = selector.select(timeout=max(0.1, wait))
             for key, _ in events:
                 line = key.fileobj.readline()
@@ -384,13 +433,19 @@ def main():
                     selector.unregister(key.fileobj)
                 elif line.strip() == 'refresh':
                     force = True
+            if force:
+                # The settings page saves the new agent list just before asking
+                # for a refresh. Reload here so newly enabled agents are picked
+                # up in this iteration instead of after the next poll.
+                ids, interval = read_settings(args.config)
+                last_scan = 0
+                if not (args.no_collect or os.environ.get('OMASTAT_NO_COLLECT')) and 'deepseek-harness' in ids:
+                    store.balance.request(time.time(), True)
             if not (args.no_collect or os.environ.get('OMASTAT_NO_COLLECT')):
                 for agent in ids:
                     if agent not in active and store.due(agent, time.time(), interval, force):
                         store.attempts[agent] = time.time()
                         active[agent] = workers.submit(collect, agent, config_home, store.state_dir)
-            if force:
-                last_scan = 0
     except (BrokenPipeError, KeyboardInterrupt):
         pass
     finally:

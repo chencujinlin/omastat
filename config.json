@@ -1,9 +1,16 @@
 {
   "startHidden": false,
   "refreshSeconds": 300,
+  "theme": "auto",
+  "showSystem": true,
+  "showAgents": true,
+  "showWeather": true,
   "agents": [
     "deepseek-harness",
     "codex",
-    "opencode"
+    "opencode",
+    "claude",
+    "pi",
+    "fireworks"
   ]
 }

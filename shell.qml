@@ -9,6 +9,7 @@ ShellRoot {
   id: root
 
   property bool shown: false
+  property bool showSettings: false
   property double nowMs: Date.now()
   property double barLeaseUntil: 0
   property string barMetric: "none"
@@ -18,7 +19,7 @@ ShellRoot {
   property bool configApplied: false
 
   Config { id: cfg }
-  Theme { id: themeService }
+  Theme { id: themeService; mode: cfg.theme }
   System {
     id: systemService
     active: root.shown || root.barNeedsSystem
@@ -26,7 +27,7 @@ ShellRoot {
     keepHistory: root.shown
   }
   Agents { id: agentsService; config: cfg }
-  Weather { id: weatherService; panelVisible: root.shown }
+  Weather { id: weatherService; panelVisible: root.shown; active: cfg.showWeather }
 
   readonly property var targetScreen: {
     var screens = Quickshell.screens
@@ -92,7 +93,7 @@ ShellRoot {
       anchors.right: parent.right
       anchors.leftMargin: 0
       anchors.rightMargin: 0
-      radius: 18
+      radius: themeService.radius
       theme: themeService
       screenInfo: panel.screen
       opacity: root.intro ? 1 : 0
@@ -102,6 +103,7 @@ ShellRoot {
       }
 
       Vitals {
+        visible: !root.showSettings
         anchors.fill: parent
         anchors.margins: 12
         theme: themeService
@@ -110,6 +112,20 @@ ShellRoot {
         weather: weatherService
         config: cfg
         panelVisible: root.shown
+        showSystem: cfg.showSystem
+        showAgents: cfg.showAgents
+        showWeather: cfg.showWeather
+        onOpenSettings: root.showSettings = true
+      }
+
+      SettingsView {
+        visible: root.showSettings
+        anchors.fill: parent
+        anchors.margins: 12
+        theme: themeService
+        config: cfg
+        agents: agentsService
+        onCloseRequested: root.showSettings = false
       }
     }
   }

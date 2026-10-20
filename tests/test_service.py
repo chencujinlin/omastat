@@ -15,6 +15,34 @@ from agents_service import atomic_json
 
 
 class ServiceTests(unittest.TestCase):
+    def test_reader_honors_local_overlay_and_empty_agent_list(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base=Path(temporary)
+            config=base/'config.json';config.write_text('{"agents":["pi"],"refreshSeconds":60}')
+            (base/'config.local.json').write_text('{"agents":["codex"]}')
+            now=datetime.now(timezone.utc).isoformat()
+            for agent in ('pi','codex'):
+                atomic_json(base/f'state/omarchy/agents/usage/{agent}.json', {'id':agent,'updatedAt':now,'todayTotalTokens':1,'todayPrompts':1,'limits':[]})
+            env=dict(os.environ,XDG_STATE_HOME=str(base/'state'),XDG_CONFIG_HOME=str(base/'config'),XDG_CACHE_HOME=str(base/'cache'))
+            process=subprocess.Popen([sys.executable,str(ROOT/'scripts/agents_service.py'),'--no-collect','--home',str(base),'--config',str(config),'--poll-seconds','0.1'],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+            selector=selectors.DefaultSelector();selector.register(process.stdout,selectors.EVENT_READ)
+            def until(predicate):
+                for _ in range(30):
+                    if not selector.select(timeout=1): self.fail('reader stopped publishing')
+                    snapshot=json.loads(process.stdout.readline())
+                    if predicate(snapshot): return snapshot
+                self.fail('reader did not observe settings change')
+            try:
+                snapshot=until(lambda s:[a['id'] for a in s['agents']]==['codex'])
+                self.assertEqual([a['id'] for a in snapshot['agents']],['codex'])
+                (base/'config.local.json').write_text('{"agents":[]}')
+                snapshot=until(lambda s:s['agents']==[])
+                self.assertEqual(snapshot['agents'],[])
+            finally:
+                process.terminate();process.wait(timeout=5)
+                self.assertEqual(process.stderr.read(),'')
+                process.stdout.close();process.stderr.close();selector.close()
+
     def test_live_reader_recovers_and_continues_without_another_plugin(self):
         with tempfile.TemporaryDirectory() as temporary:
             base=Path(temporary)

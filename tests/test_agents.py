@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from agents_service import Store, TTL, atomic_json
+from agents_service import AGENT_ORDER, Store, TTL, atomic_json
 from usage_stats import account_for_forks, aggregate, parse_native
 
 
@@ -37,6 +37,32 @@ class AgentTests(unittest.TestCase):
         row = self.snapshot(['deepseek-harness'])['agents'][0]
         self.assertIn('apiBalance', row)
         self.assertIsInstance(row['apiBalance'], dict)
+
+    def test_all_supported_agents_snapshot_in_canonical_order(self):
+        for agent in AGENT_ORDER:
+            self.write(agent)
+        self.store.poll(list(AGENT_ORDER), self.now)
+        snap = self.snapshot(list(AGENT_ORDER))
+        self.assertEqual([a['id'] for a in snap['agents']], list(AGENT_ORDER))
+        self.assertIn('accountBalance', snap['agents'][0])
+
+    def test_prepaid_balance_is_sanitized_and_exposed(self):
+        self.write('fireworks', balance={
+            'remaining': 12.5, 'funded': 20.0, 'spent': 7.5,
+            'currency': 'USD', 'estimated': False, 'secret': 'private text'})
+        self.store.poll(['fireworks'], self.now)
+        row = self.snapshot(['fireworks'])['agents'][0]
+        self.assertEqual(row['accountBalance'], {
+            'remaining': 12.5, 'funded': 20.0, 'spent': 7.5,
+            'currency': 'USD', 'estimated': False})
+        self.store.save()
+        self.assertNotIn('private', (self.root/'state/agents-cache.json').read_text())
+
+    def test_invalid_prepaid_balance_is_unknown(self):
+        self.write('fireworks', balance={'remaining': 'lots', 'secret': 'private text'})
+        self.store.poll(['fireworks'], self.now)
+        row = self.snapshot(['fireworks'])['agents'][0]
+        self.assertIsNone(row['accountBalance'])
 
     def test_performance_metrics_are_passed_through(self):
         self.write('deepseek-harness', performance={'today': {'averageTtftSeconds': 1.25, 'tokensPerSecond': 210.0, 'calls': 3}, 'allTime': {'averageTtftSeconds': 1.5, 'tokensPerSecond': 200.0, 'calls': 30}})

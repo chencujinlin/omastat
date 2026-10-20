@@ -13,7 +13,11 @@ Item {
   property var weather: null
   property var config: null
   property bool panelVisible: true
+  property bool showSystem: true
+  property bool showAgents: true
+  property bool showWeather: true
   property alias flickable: flick
+  signal openSettings()
 
   readonly property var colors: theme.colors
   readonly property real maxContentWidth: 1180
@@ -21,6 +25,10 @@ Item {
   readonly property real contentWidth: Math.min(maxContentWidth, Math.max(0, width - sideMargin * 2))
   readonly property real contentX: (width - contentWidth) / 2
   readonly property bool wide: contentWidth >= 640
+  readonly property int visibleSections: (showSystem ? 1 : 0) + (showAgents ? 1 : 0)
+  readonly property bool twoColumns: wide && visibleSections === 2
+  readonly property bool nothingVisible: visibleSections === 0
+  readonly property bool noAgentsSelected: config ? config.agents.length === 0 : false
   readonly property real todayTotalTokens: {
     var list = root.agents ? root.agents.visibleAgents : []
     var total = 0, any = false
@@ -59,6 +67,7 @@ Item {
     theme: root.theme
     system: root.system
     agents: root.agents
+    onSettingsClicked: root.openSettings()
   }
 
   Footer {
@@ -78,6 +87,7 @@ Item {
     anchors.bottom: footer.top
     theme: root.theme
     weather: root.weather
+    active: root.showWeather
   }
 
   Flickable {
@@ -94,15 +104,17 @@ Item {
 
     Grid {
       id: grid
-      width: flick.width
-      y: root.wide ? Math.max(0, (flick.height - grid.height) / 2) : 0
-      columns: root.wide ? 2 : 1
+      width: root.twoColumns ? flick.width : Math.min(flick.width, 760)
+      x: (flick.width - width) / 2
+      y: Math.max(0, (flick.height - grid.height) / 2)
+      columns: root.twoColumns ? 2 : 1
       columnSpacing: 28
       rowSpacing: 24
 
       Column {
-        width: root.wide ? (grid.width - grid.columnSpacing) / 2 : grid.width
+        width: root.twoColumns ? (grid.width - grid.columnSpacing) / 2 : grid.width
         spacing: 0
+        visible: root.showSystem
 
         Item {
           width: parent.width
@@ -188,8 +200,9 @@ Item {
       }
 
       Column {
-        width: root.wide ? (grid.width - grid.columnSpacing) / 2 : grid.width
+        width: root.twoColumns ? (grid.width - grid.columnSpacing) / 2 : grid.width
         spacing: 0
+        visible: root.showAgents
 
         Item {
           width: parent.width
@@ -287,15 +300,96 @@ Item {
           }
         }
 
-        Text {
+        Item {
           visible: root.agents.count === 0
           width: parent.width
-          height: visible ? implicitHeight + 16 : 0
-          text: "暂无 Agent 数据，等待首次采集"
-          color: Fmt.alpha(root.colors.bright, 0.74)
+          height: visible ? 42 : 0
+
+          HoverHandler {
+            cursorShape: root.noAgentsSelected ? Qt.PointingHandCursor : Qt.ArrowCursor
+          }
+
+          Text {
+            x: 0
+            y: 12
+            width: parent.width
+            text: root.noAgentsSelected ? "未选择 Agent · 打开设置" : "暂无 Agent 数据，等待首次采集"
+            color: root.noAgentsSelected ? root.colors.accent : Fmt.alpha(root.colors.bright, 0.74)
+            font.family: "Noto Sans CJK SC"
+            font.pixelSize: 11
+            wrapMode: Text.Wrap
+          }
+
+          TapHandler {
+            enabled: root.noAgentsSelected
+            onTapped: root.openSettings()
+          }
+        }
+      }
+    }
+
+    Item {
+      visible: root.nothingVisible
+      x: 0
+      y: 0
+      width: flick.width
+      height: flick.height
+
+      Column {
+        width: Math.min(360, parent.width)
+        x: (parent.width - width) / 2
+        y: Math.max(20, (parent.height - height) / 2)
+        spacing: 10
+
+        Text {
+          width: parent.width
+          horizontalAlignment: Text.AlignHCenter
+          text: "所有板块已隐藏"
+          color: Fmt.alpha(root.colors.bright, 0.88)
           font.family: "Noto Sans CJK SC"
-          font.pixelSize: 11
+          font.pixelSize: 15
+          font.weight: Font.DemiBold
+        }
+        Text {
+          width: parent.width
+          horizontalAlignment: Text.AlignHCenter
+          text: "在设置中打开系统资源、Agent 用量或天气条。"
+          color: Fmt.alpha(root.colors.bright, 0.56)
+          font.family: "Noto Sans CJK SC"
+          font.pixelSize: 10
           wrapMode: Text.Wrap
+        }
+
+        Item {
+          width: parent.width
+          height: 32
+
+          Item {
+            width: 96
+            height: 32
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            HoverHandler {
+              id: emptyHover
+              cursorShape: Qt.PointingHandCursor
+            }
+
+            Rectangle {
+              anchors.fill: parent
+              radius: 7
+              color: emptyHover.hovered ? Fmt.alpha(root.colors.accent, 0.18) : Fmt.alpha(root.colors.accent, 0.08)
+              border.width: 1
+              border.color: Fmt.alpha(root.colors.accent, emptyHover.hovered ? 0.6 : 0.34)
+            }
+            Text {
+              anchors.centerIn: parent
+              text: "打开设置"
+              color: root.colors.accent
+              font.family: "Noto Sans CJK SC"
+              font.pixelSize: 10
+            }
+            TapHandler { onTapped: root.openSettings() }
+          }
         }
       }
     }

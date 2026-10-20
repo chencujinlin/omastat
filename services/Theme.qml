@@ -2,9 +2,12 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import "../lib/Format.js" as Fmt
+import "../lib/Themes.js" as Themes
 
-// Reads the live Omarchy theme. Everything is best-effort: a missing theme
-// falls back to Tokyo Night and the panel keeps working.
+// Reads the live Omarchy theme for the default "auto" mode. Named presets are
+// app-level flat palettes registered in lib/Themes.js; they deliberately do
+// not touch the desktop theme or the top bar. Everything is best-effort: a
+// missing theme falls back to Tokyo Night and the panel keeps working.
 Item {
   id: root
   visible: false
@@ -18,21 +21,18 @@ Item {
   readonly property string namePath: themeRoot + "/theme.name"
   readonly property string backgroundPath: themeRoot + "/background"
 
-  property bool isDark: true
+  // "auto" follows Omarchy; other values select a preset from Themes.js.
+  property string mode: "auto"
+
+  property bool liveDark: true
   property string themeName: ""
   property int wallpaperVersion: 0
   property string wallpaperPath: backgroundPath
   property string backgroundTarget: ""
 
-  readonly property string mono: "JetBrainsMono Nerd Font"
-  readonly property string sans: "Noto Sans"
-
-  readonly property string wallpaperSource:
-    wallpaperPath.length > 0 && backgroundTarget.length > 0
-      ? Fmt.fileUrl(backgroundTarget) + "?v=" + wallpaperVersion
-      : ""
-
-  property var colors: ({
+  // Always the live Omarchy palette. The settings page uses this for the
+  // "follow Omarchy" preview even while a named preset is active.
+  property var liveColors: ({
     accent: "#7aa2f7",
     blue: "#7aa2f7",
     magenta: "#bb9af7",
@@ -48,6 +48,23 @@ Item {
     darkBg: "#0e0e14",
     lightBg: "#24283b"
   })
+
+  readonly property var preset: Themes.preset(root.mode)
+  readonly property var colors: root.preset ? root.preset.colors : root.liveColors
+  readonly property bool isDark: root.preset ? root.preset.dark : root.liveDark
+  readonly property bool glass: root.preset ? root.preset.glass : true
+  readonly property int radius: root.preset ? root.preset.radius : 18
+  readonly property string displayName: root.preset
+    ? root.preset.label
+    : (root.themeName.length > 0 ? root.themeName : "跟随 Omarchy")
+
+  readonly property string mono: "JetBrainsMono Nerd Font"
+  readonly property string sans: "Noto Sans"
+
+  readonly property string wallpaperSource:
+    wallpaperPath.length > 0 && backgroundTarget.length > 0
+      ? Fmt.fileUrl(backgroundTarget) + "?v=" + wallpaperVersion
+      : ""
 
   FileView {
     id: colorsFile
@@ -131,8 +148,8 @@ Item {
     var bgc = Qt.color(bg)
     var luminance = 0.2126 * bgc.r + 0.7152 * bgc.g + 0.0722 * bgc.b
 
-    root.isDark = mode === "light" ? false : (mode === "dark" ? true : luminance < 0.5)
-    root.colors = {
+    root.liveDark = mode === "light" ? false : (mode === "dark" ? true : luminance < 0.5)
+    root.liveColors = {
       accent: accent,
       blue: p.blue || accent,
       magenta: p.magenta || "#bb9af7",
@@ -142,7 +159,7 @@ Item {
       orange: p.orange || p.bright_orange || "#ff9e64",
       red: p.red || "#f7768e",
       fg: fg,
-      bright: root.isDark ? bright : fg,
+      bright: root.liveDark ? bright : fg,
       muted: muted,
       bg: bg,
       darkBg: p.dark_background || "#0e0e14",

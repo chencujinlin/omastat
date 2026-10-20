@@ -67,7 +67,7 @@ def main():
             (usage/f'{agent}.json').write_text(json.dumps({'id':agent,'updatedAt':datetime.now(timezone.utc).isoformat(),'todayTotalTokens':12345,'todayPrompts':12,'limits':[],'hasLocalStats':True,'recentDays':[],'modelUsage':{}}))
         for label,original in [('before',args.before),('after',args.after)]:
             root=fixture/(label+'-source')
-            shutil.copytree(original,root,ignore=shutil.ignore_patterns('.git','.aws','.codex','.agents','__pycache__','*.log','stage1-*.png'))
+            shutil.copytree(original,root,ignore=shutil.ignore_patterns('.git','.aws','.codex','.agents','__pycache__','*.log','stage1-*.png','config.local.json'))
             initial=json.loads((root/'config.json').read_text())
             initial['startHidden']=False
             (root/'config.json').write_text(json.dumps(initial))

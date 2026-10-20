@@ -6,6 +6,7 @@ Item {
 
   property var theme: null
   property var weather: null
+  property bool active: true
 
   readonly property var info: weather && weather.weatherData ? weather.weatherData : ({})
   readonly property bool ready: info.state === "ok"
@@ -28,7 +29,7 @@ Item {
     return direction + (direction ? " " : "") + info.windKmph + " km/h"
   }
 
-  visible: ready
+  visible: root.active && ready
   implicitHeight: 62
   height: visible ? implicitHeight : 0
 

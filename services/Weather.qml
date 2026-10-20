@@ -10,8 +10,9 @@ Item {
   visible: false
 
   property bool panelVisible: true
+  property bool active: true
   property var weatherData: ({ state: "loading" })
-  readonly property bool fetchEnabled: Quickshell.env("OMASTAT_NO_COLLECT") !== "1"
+  readonly property bool fetchEnabled: root.active && Quickshell.env("OMASTAT_NO_COLLECT") !== "1"
   readonly property bool ready: weatherData && weatherData.state === "ok"
 
   function request() {
@@ -55,5 +56,7 @@ Item {
     onTriggered: root.request()
   }
 
-  Component.onCompleted: if (root.panelVisible) root.request()
+  onActiveChanged: if (root.active && root.panelVisible) root.request()
+
+  Component.onCompleted: if (root.panelVisible && root.active) root.request()
 }
