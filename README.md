@@ -10,7 +10,7 @@
 - **核心指标**：CPU 型号、使用率、温度、频率与最近 60 秒趋势；GPU 型号、使用率与趋势；内存、Swap；根文件系统容量、可用空间与块设备读写速度。内存区域默认收起占用最高的三个进程；点击「高占用进程」展开名称与占总内存比例。容量单位统一显示为 `G`。缺失或不支持的数值显示 `--` /「暂无数据」。GPU 温度、显存、功耗仅显示内核提供的传感器。
 - **Agent 用量**：支持 Omarchy 本机 agent usage 提供的全部 6 个工具：DeepSeek Harness、Codex、OpenCode、Claude Code、Pi、Fireworks（DeepSeek Harness 第一）。每个工具一行，固定展示四项：**额度/余额、消耗量、首字、平均速度**。DeepSeek Harness 显示 DSH 登录账号的 Platform 余额；Codex/Claude 显示本机登录态可读到的额度；Fireworks 有预付费余额时显示余额；OpenCode/Pi 没有额度接口时显示「无」。Agent 区单独显示「今日总消耗」，消耗量达到 100M 后按「亿」显示。可在设置页逐个选择展示哪些 Agent；未选择的 Agent 不采集、不计入今日总消耗。默认全部展开，不折叠、不需要点击。
 - **设置页**：右上角滑杆入口，返回后回到概览。可切换主题（跟随 Omarchy / Tokyo Night / 橙色 / 浅色）、开关系统资源/Agent 用量/天气条、逐个选择 Agent，并恢复默认显示。修改自动保存到 `config.local.json`，无需重启。
-- **视觉**：名称统一为 Omastat；顶部名称使用 Z003 花体英文，时间和日期同时显示；默认深色磨砂玻璃背景取自当前 Omarchy 主题壁纸，宽窗口自动两栏，窄窗口自动单栏并滚动。内置三套纯色主题：Tokyo Night（Omarchy 深蓝）、橙色（暖橙、无玻璃）、浅色（Claude 风格米黄、陶土色强调）；三套均为无壁纸、无颗粒、不透明面板，只有「跟随 Omarchy」保留玻璃效果。
+- **视觉**：名称统一为 Omastat；顶部名称使用 Z003 花体英文，时间和日期同时显示；默认深色磨砂玻璃背景取自当前 Omarchy 主题壁纸，宽窗口自动两栏，窄窗口自动单栏并滚动。内置三套纯色主题：Tokyo Night（Omarchy 深蓝）、橙色（暖橙、无玻璃）、浅色（Claude 风格米黄、陶土色强调）；三套均为无壁纸、无颗粒、不透明面板，只有「跟随 Omarchy」保留玻璃效果。窄窗口下标题和时间会自动分成上下两行，时间淡入显示，避免重叠。
 - **底部天气**：读取与 Omarchy 状态栏天气相同的本机位置配置（`~/.local/state/omarchy/settings/weather.json`，缺失时按 IP 自动定位）和同一个 wttr.in 数据源，显示当前温度、天气、体感/湿度、最高/最低与风向风速；每 15 分钟刷新，窗口隐藏或关闭天气条时暂停。
 - **独立顶部栏入口**：点击切换同一个监控窗口；可选 CPU、内存或现有账号额度。`○` 正常、`◐` 过期、`●` 异常、`◌` 未知，异常与过期另有颜色提示。
 
@@ -125,13 +125,14 @@ omastat run           # 前台运行，查看 QML 诊断
 python3 -m unittest discover -s tests -v
 python3 tests/theme_smoke.py
 python3 tests/config_smoke.py
+python3 tests/header_smoke.py
 python3 tests/qml_smoke.py
 bash -n install.sh uninstall.sh bin/omarchy-vitals bin/omastat
 /usr/lib/qt6/bin/qmllint -I /usr/lib/qt6/qml shell.qml Vitals.qml Config.qml services/*.qml components/*.qml
 python3 scripts/vitals_sampler.py --count 2
 ```
 
-单元/集成测试覆盖来源独立刷新、异常恢复、限流、跨午夜、额度 TTL/重置、Claude 认证失效回退、计费去重、TTFT/速度透传、内存进程聚合、安装配置保留、配置覆盖层合并、空 Agent 列表、6 Agent 顺序与 Fireworks 余额净化。`config_smoke.py` 用真实 QML FileView 验证设置写入、手动覆盖键保留与重启加载；`theme_smoke.py` 验证 auto、Tokyo Night、橙色、浅色四种模式的玻璃、明暗、圆角与核心色值。QML 冒烟检查覆盖应用、隐藏态应用和本机 Omarchy 顶部栏组件；真实 Wayland 窗口截图核对了四种主题、设置页宽/窄布局、单栏和全部隐藏状态。
+单元/集成测试覆盖来源独立刷新、异常恢复、限流、跨午夜、额度 TTL/重置、Claude 认证失效回退、计费去重、TTFT/速度透传、内存进程聚合、安装配置保留、配置覆盖层合并、空 Agent 列表、6 Agent 顺序与 Fireworks 余额净化。`config_smoke.py` 用真实 QML FileView 验证设置写入、手动覆盖键保留与重启加载；`theme_smoke.py` 验证 auto、Tokyo Night、橙色、浅色四种模式的玻璃、明暗、圆角与核心色值；`header_smoke.py` 验证宽/窄窗口下标题和时间头部的重排。QML 冒烟检查覆盖应用、隐藏态应用和本机 Omarchy 顶部栏组件；真实 Wayland 窗口截图核对了四种主题、设置页宽/窄布局、头部 380/320/300 宽度、单栏和全部隐藏状态。
 
 真实桌面实测：窗口平铺为 741×986 时 Quickshell 静态约 2% 单核；系统采样器约 3–5% 单核；隐藏窗口后采样器停止。玻璃背景使用低分辨率壁纸放大，不做全屏逐帧模糊，避免常驻 GPU 负担。
 

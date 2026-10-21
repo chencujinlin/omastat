@@ -8,7 +8,6 @@ Item {
   property var system: null
   property var agents: null
   signal settingsClicked()
-  implicitHeight: 64
 
   readonly property var colors: theme ? theme.colors : ({
     accent: "#7aa2f7", green: "#9ece6a", yellow: "#e0af68", red: "#f7768e",
@@ -16,6 +15,39 @@ Item {
   })
   property date clockDate: new Date()
   Timer { interval: 30000; running: root.visible; repeat: true; onTriggered: root.clockDate = new Date() }
+
+  // Below this width the title and the right-aligned time block would collide.
+  // Keep a little extra room so the clock never touches the wordmark while the
+  // window is being resized.
+  readonly property real timeWidth: Math.max(clock.implicitWidth, date.implicitWidth)
+  readonly property real titleEdge: word.x + word.width + 13
+  readonly property bool compact: width > 0 && width < Math.max(320, titleEdge + timeWidth + settingsButton.width + 22)
+  readonly property int expandedHeight: 64
+  readonly property int compactHeight: 74
+  implicitHeight: compact ? compactHeight : expandedHeight
+  height: implicitHeight
+  property real timeOpacity: 1
+
+  Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+
+  onCompactChanged: {
+    // The time block swaps sides between the two layouts. Fade it back in at
+    // the new position instead of letting it slide across the wordmark.
+    root.timeOpacity = 0
+    timeFade.restart()
+  }
+
+  SequentialAnimation {
+    id: timeFade
+    NumberAnimation {
+      target: root
+      property: "timeOpacity"
+      from: 0
+      to: 1
+      duration: 180
+      easing.type: Easing.OutCubic
+    }
+  }
 
   Item {
     id: mark
@@ -88,25 +120,33 @@ Item {
   }
 
   Text {
-    anchors.right: settingsButton.left
-    anchors.rightMargin: 10
-    y: 0
+    id: clock
+    x: root.compact ? 24 : root.width - settingsButton.width - 10 - implicitWidth
+    y: root.compact ? 38 : 0
+    opacity: root.timeOpacity
     text: Fmt.clock(root.clockDate)
     color: root.colors.bright
     font.family: "JetBrainsMono Nerd Font"
     font.pixelSize: 19
     font.weight: Font.DemiBold
+
+    Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
   }
 
   Text {
-    anchors.right: settingsButton.left
-    anchors.rightMargin: 10
-    y: 27
+    id: date
+    x: root.compact
+      ? 24 + clock.implicitWidth + 10
+      : root.width - settingsButton.width - 10 - implicitWidth
+    y: root.compact ? 46 : 27
+    opacity: root.timeOpacity
     text: Fmt.fullDate(root.clockDate)
     color: Fmt.alpha(root.colors.bright, 0.76)
     font.family: "Noto Sans CJK SC"
     font.pixelSize: 10
     font.letterSpacing: 0.5
+
+    Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
   }
 
   Rectangle {

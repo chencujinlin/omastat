@@ -13,3 +13,7 @@ agents-cache.json
 *.sqlite
 *.sqlite-*
 docs/*.tmp
+
+# Local-only agent instructions and progress notes
+/AGENTS.md
+/PROGRESS.md
